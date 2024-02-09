@@ -48,7 +48,7 @@ jobs:
           ls -l _build/html/*.html
 
       - name: Publish HTML artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: PROJECT_NAME_HTML
           path: doc/build/html
