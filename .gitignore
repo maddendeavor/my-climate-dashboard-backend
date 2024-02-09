@@ -1,0 +1,172 @@
+################################################################################
+##  GIT Ignore
+################################################################################
+
+######################
+## directories
+######################
+.svn/
+*[Bb]in/
+[Dd]ebug/
+gen/
+[Oo]bj/
+[Oo]ut/
+[Rr]elease/
+*[Ss]ettings/
+[Dd]ata/
+*venv*
+*[Bb]uild*
+
+######################
+## temporary files
+######################
+*.bak
+*.tmp
+.tags
+
+########################
+## compiler output files
+########################
+*.a
+*.app
+*.bin
+*.crun
+*.d
+*.dll
+*.dylib
+*.elf
+*.exe
+*.gch
+*.gcno
+*.hex
+*.lib
+*.lo
+*.lst
+*.map
+*.o
+*.obj
+*.out
+*.pch
+*.slo
+*.so
+
+#####################
+## logs and Db files
+#####################
+*.log
+*.sql
+*.sqlite
+
+################################
+## archive & compression files
+################################
+*.7z
+*.bz2
+*.cab
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+################
+## Intellij IDE
+################
+.idea/
+
+################
+## Eclipse
+################
+##  ref: https://github.com/github/gitignore/blob/master/Global/Eclipse.gitignore
+bin/
+tmp/
+*~.nib
+.metadata
+local.properties
+.recommenders
+.externalToolBuilders/
+*.launch
+*.pydevproject
+.cproject
+.factorypath
+.target
+.tern-project
+.springBeams
+.recommenders/
+.cache-main
+.scala_dependencies
+.worksheet
+
+####################
+## Python
+####################
+# Created by https://www.gitignore.io/api/python
+# also see:  https://github.com/github/gitignore/blob/master/Python.gitignore
+
+### Python ###
+# Byte-compiled / optimized / DLL files
+__pycache__
+*.py[cod]
+*$py.class
+.ipynb_checkpoints
+
+# Distribution / packaging
+.Python
+*[Bb]uild/*
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so as to inject date/other infos into it.
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Translations
+*.mo
+*.pot
+
+# Django:
+local_settings.py
+
+# JupyterHub:
+jupyterhub*
+
+#################
+## Matlab
+################
+# autosave
+*.asv
+
+#################
+## Next program
+################

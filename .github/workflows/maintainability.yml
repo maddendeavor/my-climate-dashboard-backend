@@ -1,0 +1,75 @@
+# Checks Maintainability using Wily Package
+# https://towardsdatascience.com/simplify-your-python-code-automating-code-complexity-analysis-with-wily-5c1e90c9a485
+# https://medium.com/@pandalearnstocode/maintain-readability-of-code-in-time-with-wily-b57c0c1e6ff
+
+name: maintainability
+on:
+  push:  # runs on push
+  workflow_dispatch:  # also can manually trigger
+
+jobs:
+  Maintainability:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "The job was automatically triggered by a ${{ github.event_name }} event."
+      - run: echo "This job is now running on a ${{ runner.os }} server."
+      - run: echo "Branch name ${{ github.ref }}; repository ${{ github.repository }}."
+      - name: Check out repository code
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          token: ${{ secrets.GITFLOW_PAT }}
+      - run: echo "The ${{ github.repository }} repository has been cloned to the runner."
+      - run: echo "The workflow is now ready to test your code on the runner."
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4.7.1
+        with:
+          python-version: '3.10'
+      
+      - name: Install Dependencies
+        run: |
+          pip install -e .[dev]
+          wily --version
+          echo "All required dependencies have been installed."
+
+      - name: Build Wily Database
+        id: wily
+        run: |
+          wily build .
+
+      - name: Create Maintainability Rank & Badge
+        run: |
+          wily rank project_name/ >> maintainability.txt
+          
+          # Keep last in grep so only reporting stat on src file
+          MAINT=`(cat maintainability.txt | grep "Total" | tail -1) | grep -Eo '[+-]?[0-9]+([.][0-9]+)?'`
+          
+          if (( $(echo "$MAINT > 75" |bc -l) )); then
+            COLOR='#4DC81F'  # green
+          elif (( $(echo "$MAINT > 50" |bc -l) )); then
+            COLOR='#FFA500'  # yellow
+          else
+            COLOR='#c00'  #red
+          fi
+          
+          BADGE_TEXT=`printf "%.1f" $MAINT`       
+          python -m pybadges --left-text=maintainability --right-text="$BADGE_TEXT%" --right-color=$COLOR  >> maintainability_badge.svg
+
+      - name: Update maintainability files and commit
+        run: |       
+          mv maintainability_badge.svg ./doc/
+          mv maintainability.txt ./doc/
+          
+          # only update if there has been a change
+          if [ -n "$(git status --porcelain)" ]; then
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            git add .
+            git commit -am "Update maintainability links ${{ github.ref }}"
+            git push https://${{ secrets.GITFLOW_PAT }}@github.com/${{ github.repository }} ${{ github.ref }}
+          else
+            echo "No changes to maintainability found"
+          fi
+
+

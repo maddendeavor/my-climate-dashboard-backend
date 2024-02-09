@@ -1,0 +1,76 @@
+name: Build_Docs
+
+on:
+  push:  # Triggers the workflow on push events
+  workflow_dispatch:  # Allows you to run this workflow manually from the Actions tab
+
+jobs:
+  Build_Docs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - run: echo "The job was automatically triggered by a ${{ github.event_name }} event."
+      - run: echo "This job is now running on a ${{ runner.os }} server."
+      - run: echo "Branch name ${{ github.ref }}; repository ${{ github.repository }}."
+
+      - name: Check out repository code
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          token: ${{ secrets.GITFLOW_PAT }}
+      - run: echo "The ${{ github.repository }} repository has been cloned to the runner."
+      - run: echo "The workflow is now ready to test your code on the runner."
+
+      - name: Set up Python
+        uses: actions/setup-python@v4.7.1
+        with:
+          python-version: '3.10'
+
+      - name: Install Linux Packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-sphinx latexmk 
+          sudo apt-get install -y texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended
+          echo "All required dependencies have been installed."
+
+      - name: Install Dependencies
+        run: |
+          pip install -e .[dev]
+          echo "All required dependencies have been installed."
+          pip list | grep docstr  # docstr version
+
+      - name: Build HTML & PDF document
+        run: |
+          cd doc
+          # make latexpdf
+          # ls -l _build/latex/*.pdf
+          make html
+          ls -l _build/html/*.html
+
+      - name: Publish HTML artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: PROJECT_NAME_HTML
+          path: doc/build/html
+
+      - name: Create Documentation Coverage & Badge
+        run: |
+          docstr-coverage --skip-init -b docstringcoverage_badge.svg project_name 2>&1 | tee -a docstringcoverage.txt
+          # remove lines that change each time docstr-coverage is run to prevent runwaway condition on workflow
+          sed -i '/Checking python files:/d' docstringcoverage.txt  
+
+      - name: Update docstring coverage files and commit
+        run: |       
+          mv docstringcoverage_badge.svg ./doc/
+          mv docstringcoverage.txt ./doc/
+          
+          # only update if there has been a change
+          if [ -n "$(git status --porcelain)" ]; then
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            git add .
+            git commit -am "Update test docstr coverage links ${{ github.ref }}"
+            git push https://${{ secrets.GITFLOW_PAT }}@github.com/${{ github.repository }} ${{ github.ref }}
+          else
+            echo "No changes to docstr coverage found"
+          fi
