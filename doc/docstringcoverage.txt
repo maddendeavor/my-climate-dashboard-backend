@@ -1,15 +1,15 @@
 
-File: "/home/runner/work/python-template/python-template/project_name/__init__.py"
+File: "/home/runner/work/my-climate-dashboard-backend/my-climate-dashboard-backend/project_name/__init__.py"
  - No module docstring
  Needed: 1; Found: 0; Missing: 1; Coverage: 0.0%
 
 
-File: "/home/runner/work/python-template/python-template/project_name/sub_package/__init__.py"
+File: "/home/runner/work/my-climate-dashboard-backend/my-climate-dashboard-backend/project_name/sub_package/__init__.py"
  - No module docstring
  Needed: 1; Found: 0; Missing: 1; Coverage: 0.0%
 
 
-File: "/home/runner/work/python-template/python-template/project_name/sub_package/test_example.py"
+File: "/home/runner/work/my-climate-dashboard-backend/my-climate-dashboard-backend/project_name/sub_package/test_example.py"
  - No module docstring
  - No docstring for `inc`
  - No docstring for `test_answer`
@@ -19,4 +19,4 @@ File: "/home/runner/work/python-template/python-template/project_name/sub_packag
 Overall statistics for 6 files (1 files are empty) (skipped __init__ methods):
 Needed: 28  -  Found: 23  -  Missing: 5
 Total coverage: 82.1%  -  Grade: Very good
-Docstring coverage badge saved to '/home/runner/work/python-template/python-template/docstringcoverage_badge.svg'
+Docstring coverage badge saved to '/home/runner/work/my-climate-dashboard-backend/my-climate-dashboard-backend/docstringcoverage_badge.svg'
