@@ -60,7 +60,7 @@ def create_app(test_config=None):
         def post(self):
             args = self.inputs.parse_args()
             print(args)
-            # return PREDICTOR.predict_gpc(args)
+            # return XX.predict(args)
 
     api.add_resource(ClimateStats, "/my-climate-dashboard/green-energy-stats")
 
