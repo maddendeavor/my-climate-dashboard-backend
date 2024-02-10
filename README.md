@@ -28,6 +28,9 @@ pip install -e .[dev]
 ```commandline
 flask --app my_climate_dashboard_backend run --debug
 ```
+## Test API
+curl -i -H "Content-Type: application/json" -X POST -d '{"ba_name": "psei"}' 127.0.0.1:5000/my-climate-dashboard/green-energy-stats
+
 
 ## References
 * Links to where the reference documents live, including API reference docs.
