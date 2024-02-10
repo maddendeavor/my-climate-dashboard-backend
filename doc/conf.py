@@ -34,7 +34,7 @@ extensions = [
 ]
 autodoc_default_flags = ["members", "inherited-members", "undoc-members"]
 autosummary_generate = True
-autoapi_dirs = [os.path.normpath(os.path.join("..", "project_name/"))]
+autoapi_dirs = [os.path.normpath(os.path.join("..", "my_climate_dashboard_backend/"))]
 autoapi_root = "api"
 autodoc_typehints = "description"
 

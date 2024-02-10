@@ -1,15 +1,18 @@
 from setuptools import setup
 
 setup(
-    name='python_template',
+    name='my_climate_dashboard_backend',
     version='0.0',
-    description='Template project for python projects',
+    description='Backend project for the my climate dashboard',
     long_description=open('README.md').read(),
     author='Christine Madden',
     license=open('LICENSE').read(),
     author_email='christine.m.madden19@gmail.com',
-    packages=['project_name'],
+    packages=['my_climate_dashboard_backend'],
     install_requires=[
+        "flask",
+        "flask-restful",
+        "gunicorn",
     ],
     extras_require={
             "dev": [
@@ -33,7 +36,7 @@ setup(
     entry_points={
         'console_scripts':
         [
-            'project_name = project_name.__main__:main',
+            'my_climate_dashboard_backend = my_climate_dashboard_backend.__main__:main',
         ]
     }
 )
