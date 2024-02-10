@@ -2,12 +2,12 @@ from setuptools import setup
 
 setup(
     name='my_climate_dashboard_backend',
-    version='0.0',
-    description='Backend project for the my climate dashboard',
+    version='0.0.0',
+    description='Backend for my climate dashboard',
     long_description=open('README.md').read(),
-    author='Christine Madden',
+    author='Natalie Grefenstette, Ridhee Gupta, Helen Li, Christine Madden',
     license=open('LICENSE').read(),
-    author_email='christine.m.madden19@gmail.com',
+    author_email='',
     packages=['my_climate_dashboard_backend'],
     install_requires=[
         "flask",
