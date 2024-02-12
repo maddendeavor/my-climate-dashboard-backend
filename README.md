@@ -1,8 +1,3 @@
-[![testcoverage](/doc/testcoverage_badge.svg)](/doc/testcoverage.txt)
-[![maintainability](/doc/maintainability_badge.svg)](/doc/maintainability.txt)
-[![docstring_coverage](/doc/docstringcoverage_badge.svg)](/doc/docstringcoverage.txt)
-[![doc_style](https://img.shields.io/badge/%20style-numpy-459db9.svg)](https://numpydoc.readthedocs.io/en/latest/format.html)
-
 # My Climate Dashboard
 The purpose of this project is to create a dashboard that displays a user's climate data in one place. 
 The dashboard is expected to contain multiple features, but development was first focused on delivering hourly
@@ -28,9 +23,21 @@ pip install -e .[dev]
 ```commandline
 flask --app my_climate_dashboard_backend run --debug
 ```
-## Test API
-curl -i -H "Content-Type: application/json" -X POST -d '{"ba_name": "psei"}' 127.0.0.1:5000/my-climate-dashboard/green-energy-stats
 
+The BA data requires an API key in order to run it. You can generate the 
+API key on the EIA website here: https://www.eia.gov/opendata/register.php
+
+To run the app from the command line, you need to add the API key to your bash terminal session. 
+You can do this by adding this line to your `.bashrc` file:
+
+```commandline
+export EIA_API_KEY=<enter_api_key_here>
+```
+
+## Test API
+```commandline
+curl -i -H "Content-Type: application/json" -X POST -d '{"ba_name": "psei"}' 127.0.0.1:5000/my-climate-dashboard/green-energy-stats
+```
 
 ## References
 * Links to where the reference documents live, including API reference docs.

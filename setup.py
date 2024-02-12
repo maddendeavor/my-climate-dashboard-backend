@@ -13,6 +13,8 @@ setup(
         "flask",
         "flask-restful",
         "gunicorn",
+        "pandas",
+        "matplotlib",
     ],
     extras_require={
             "dev": [
