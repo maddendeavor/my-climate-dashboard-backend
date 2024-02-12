@@ -9,7 +9,7 @@ import pandas as pd
 VERSION = "0.0.0"
 EIA_API_KEY = os.environ.get("EIA_API_KEY")
 DUMMY_RESPONSE = {
-    "created": datetime.date.today().isoformat(),
+    "created": datetime.datetime.now().isoformat(),
     "sw_version": VERSION,
     "ba_name": "IMAGINARY_BA",
     "source_ratio_current": {"nuclear": 0.2, "solar": 0.1, "coal": 0.7},
@@ -29,26 +29,52 @@ class BAStats:
 
     def __init__(self, ba_name, logger=LOCAL_LOGGER ):
         self.data = pd.DataFrame()
-        self.data_datetime = datetime.date.today().isoformat()
-        self.ba_name = ba_name
+        self.data_datetime = None
+        self.ba_name = ba_name.upper()
         self.logger = logger
+        self.logger.info(f"initialized with {self.ba_name}")
 
 
     def get_data(self):
-        self.data = get_eia_grid_mix_timeseries_hourly(
-            [self.ba_name],
-            # Get last 5 days of data
-            start_date=(datetime.date.today() - datetime.timedelta(days=5)).isoformat(),
-            end_date=datetime.date.today().isoformat(),
-            frequency="hourly"
-        )
-        self.data_datetime = datetime.date.today()
-        self.logger.info("Got Data!")
+
+        self.logger.info("Getting data")
+        if self.data.empty or (max(self.data["timestamp"]) > (datetime.datetime.now() - datetime.timedelta(hours=1))):
+            # Only grab new data if it has been more than an hour since the last data we have
+
+            # TODO Need to figure out how we want to calculate this - Mix data is not current, but Forecast data doesn't have the mix
+            # Can we estimate the mix and use the generation data to estimate the green versus not green data?
+
+
+            # This provides generation mix, but only goes up to 00 the day before, T08 = 00H PST
+            # self.data = get_eia_grid_mix_timeseries_hourly(
+            #     [self.ba_name],
+            #     # Get last 5 days of data
+            #     start_date=(datetime.date.today() - datetime.timedelta(days=5)).isoformat(),  # 5 days ago
+            #     end_date=(datetime.date.today() + datetime.timedelta(days=1)).isoformat(),  # tomorrow
+            #     frequency="hourly"
+            # )
+
+            # This provides most up to date demand and forecast data, but not mix
+            self.data = get_eia_demand_forecast_generation_interchange(self.ba_name,
+                start_date=(datetime.date.today() - datetime.timedelta(days=5)).isoformat(),  # 5 days ago
+                end_date=(datetime.date.today() + datetime.timedelta(days=3)).isoformat(),  # tomorrow
+            ).copy()
+            self.logger.info(self.data.columns)
+            self.logger.info(len(self.data))
+
+            self.data_datetime = datetime.datetime.now().isoformat()
+            self.logger.info(f"Got Data up to {max(self.data['timestamp'])}")
+            print(f"Got Data up to {max(self.data['timestamp'])}!")
 
     def return_stats(self):
 
         self.logger.info("calculating results")
-        # perform calculation
+
+        # TODO add steps to calculate rest of stats
+        self.get_data()
+        print(self.data.columns.values)
+        latest_data = self.data[self.data["timestamp"] == max(self.data["timestamp"])]
+
 
         # response = DUMMY_RESPONSE.copy()
         # response["ba_name"] = ba_name
@@ -83,6 +109,7 @@ def get_api_data():
 
     return response_content
 
+
 # Time series get functions
 def get_eia_timeseries(
         url_segment,
@@ -96,7 +123,6 @@ def get_eia_timeseries(
     """
     A generalized helper function to fetch data from the EIA API
     """
-    print("frequency:", frequency)
     api_url = f"https://api.eia.gov/v2/electricity/rto/{url_segment}/data/?api_key={EIA_API_KEY}"
 
     if timezone is not None:
@@ -120,7 +146,8 @@ def get_eia_timeseries(
                 }
             )
         },
-    ).json()
+    )
+    response_content = response_content.json()
 
     # Sometimes EIA API responses are nested under a "response" key. Sometimes not 🤷
     if "error" in response_content:
@@ -143,7 +170,6 @@ def get_eia_timeseries(
     dataframe = pd.DataFrame(response_content["data"])
     dataframe["timestamp"] = dataframe["period"].apply(
         pd.to_datetime,
-        # format="%Y/%m/%dT%H"
         format="ISO8601"
     )
     # Clean up the "value" column-
@@ -203,6 +229,23 @@ def get_eia_grid_mix_timeseries_hourly(balancing_authorities, frequency="hourly"
         timezone=None,
         **kwargs,
     )
+
+
+def get_eia_demand_forecast_generation_interchange(balancing_authorities, frequency="hourly", **kwargs):
+    """
+    Fetch hourly demand with demand "D", demand forecast "DF", generation as "NG" and interchange as "TI"
+    """
+    data = get_eia_timeseries(
+        url_segment="region-data",
+        # facets={"respondent": balancing_authorities},  # for some reason this doesn't work on this
+        facets={},
+        value_column_name="Generation (MWh)",
+        frequency=frequency,
+        timezone=None,
+        **kwargs,
+    )
+    data = data[data["respondent"] == balancing_authorities]  # filter out
+    return data
 
 
 # Dataframe cleaning and processing functions
@@ -319,27 +362,24 @@ if __name__ == "__main__":
 
     t0=time.time()
     ba_stats = BAStats(ba_authority)
-    ba_stats.get_data()
+    results = ba_stats.return_stats()
 
-    # local_generation_grid_mix_hourly = get_eia_grid_mix_timeseries_hourly(
-    #     [ba_authority],
-    #     # Optional: uncomment the lines below to try looking at a different time range to get data from other seasons.
-    #     start_date=(datetime.date.today() - datetime.timedelta(days=5)).isoformat(),
-    #     end_date=datetime.date.today().isoformat(),
-    #     frequency="hourly"
-    # )
     print("data_datetime", ba_stats.data_datetime)
     print("data\n", ba_stats.data)
-    print(ba_stats.return_stats())
     print("Process time:", time.time()-t0)
 
+    print(results)
+
     # Plot results
-    fig, ax = plt.subplots()
-    for fuel_type in ba_stats.data["fueltype"].unique():
-        df = ba_stats.data[ba_stats.data["fueltype"] == fuel_type]
+    fig, ax = plt.subplots(figsize=(12, 8))
+    for fuel_type in ba_stats.data["type-name"].unique():
+        df = ba_stats.data[ba_stats.data["type-name"] == fuel_type]
         ax.plot(df["timestamp"], df["Generation (MWh)"], label=fuel_type)
     plt.legend()
     plt.grid(True)
+    # fig.subplots_adjust(bottom=0.1)
+    plt.xticks(rotation=45)
+    # plt.tight_layout()
     plt.title(f"{ba_authority} Power Generation")
     plt.xlabel("Timestamp")
     plt.ylabel("Generation (MWh)")

@@ -43,7 +43,8 @@ def create_app(test_config=None):
 
         def post(self):
             args = self.inputs.parse_args()
-            response = BAStats(args["ba_name"], logger=self.logger).return_stats()
+            ba_stats = BAStats(args["ba_name"], logger=self.logger)
+            response = ba_stats.return_stats()
             return response
 
     api.add_resource(ClimateStats, "/my-climate-dashboard/green-energy-stats")
