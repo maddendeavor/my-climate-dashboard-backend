@@ -15,6 +15,7 @@ setup(
         "gunicorn",
         "pandas",
         "matplotlib",
+        "requests",
     ],
     extras_require={
             "dev": [
