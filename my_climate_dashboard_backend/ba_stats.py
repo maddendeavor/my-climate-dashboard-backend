@@ -68,15 +68,16 @@ class BAStats:
     def return_stats(self):
 
         self.logger.info("calculating results")
+        # response = DUMMY_RESPONSE.copy()
+        # response["ba_name"] = ba_name
 
         # TODO add steps to calculate rest of stats
         self.get_data()
         latest_mix = self.data_mix[self.data_mix["timestamp"] == max(self.data_mix["timestamp"])]
         latest_mix["mix_ratio"] = latest_mix["Generation (MWh)"] / sum(latest_mix["Generation (MWh)"])
         source_ratio_current = latest_mix[["type-name", "mix_ratio"]].set_index("type-name").to_dict()
+        source_ratio_current["timestamp"] = str(max(self.data_mix["timestamp"]))
 
-        # response = DUMMY_RESPONSE.copy()
-        # response["ba_name"] = ba_name
         demand_data = {
                     "timestamp_demand": self.data_demand[self.data_demand["type"] == "D"]["timestamp"].astype(str).tolist(),
                     "demand": self.data_demand[self.data_demand["type"] == "D"]["Generation (MWh)"].tolist(),
