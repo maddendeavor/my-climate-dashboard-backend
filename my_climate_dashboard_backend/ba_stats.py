@@ -98,8 +98,13 @@ class BAStats:
             "green_ratio_mean": 0.0,  # this should be center point of dial
             "green_threshold_low": 0.0,  # below this dashboard popup says “shed loads”
             "green_threshold_high": 0.0,  # above this dashboard popup says “plug in loads”
+            "demand_ratio_current": 0.0,  # ratio of demand to max demand
+            "demand_ratio_mean": 0.5,  # this should be center point of dial
+            "demand_threshold_low": 0.0,  # below this dashboard popup says "plug in loads"
+            "demand_threshold_high": 0.0,  # above this dashboard popup says "shed loads"
+
             "alert_text": "Dirtier Energy Than Normal:  Shed Loads!",
-            "data_timeseries":{
+            "data_timeseries": {
                 "demand_data": copy.copy(demand_data),
                 "mix_data": copy.copy(mix_data),
 
