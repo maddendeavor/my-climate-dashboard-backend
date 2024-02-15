@@ -4,6 +4,7 @@ import time
 import datetime
 import requests
 import json
+import copy
 import pandas as pd
 
 VERSION = "0.0.0"
@@ -46,25 +47,23 @@ class BAStats:
 
 
             # This provides generation mix, but only goes up to 00 the day before, T08 = 00H PST
-            # self.data = get_eia_grid_mix_timeseries_hourly(
-            #     [self.ba_name],
-            #     # Get last 5 days of data
-            #     start_date=(datetime.date.today() - datetime.timedelta(days=5)).isoformat(),  # 5 days ago
-            #     end_date=(datetime.date.today() + datetime.timedelta(days=1)).isoformat(),  # tomorrow
-            #     frequency="hourly"
-            # )
+            self.data_mix = get_eia_grid_mix_timeseries(
+                [self.ba_name],
+                # Get last 5 days of data
+                start_date=(datetime.date.today() - datetime.timedelta(days=5)).isoformat(),  # 5 days ago
+                end_date=(datetime.date.today() + datetime.timedelta(days=1)).isoformat(),  # tomorrow
+                frequency="hourly"
+            ).copy()
 
             # This provides most up to date demand and forecast data, but not mix
-            self.data = get_eia_demand_forecast_generation_interchange(self.ba_name,
+            self.data_demand = get_eia_demand_forecast_generation_interchange(
+                [self.ba_name],  # needs to be in a list
                 start_date=(datetime.date.today() - datetime.timedelta(days=5)).isoformat(),  # 5 days ago
                 end_date=(datetime.date.today() + datetime.timedelta(days=3)).isoformat(),  # tomorrow
             ).copy()
-            self.logger.info(self.data.columns)
-            self.logger.info(len(self.data))
 
             self.data_datetime = datetime.datetime.now().isoformat()
-            self.logger.info(f"Got Data up to {max(self.data['timestamp'])}")
-            print(f"Got Data up to {max(self.data['timestamp'])}!")
+            print(f"Got Data up to {max(self.data_demand['timestamp'])}!")
 
     def return_stats(self):
 
@@ -72,22 +71,38 @@ class BAStats:
 
         # TODO add steps to calculate rest of stats
         self.get_data()
-        print(self.data.columns.values)
-        latest_data = self.data[self.data["timestamp"] == max(self.data["timestamp"])]
-
+        latest_mix = self.data_mix[self.data_mix["timestamp"] == max(self.data_mix["timestamp"])]
+        latest_mix["mix_ratio"] = latest_mix["Generation (MWh)"] / sum(latest_mix["Generation (MWh)"])
+        source_ratio_current = latest_mix[["type-name", "mix_ratio"]].set_index("type-name").to_dict()
 
         # response = DUMMY_RESPONSE.copy()
         # response["ba_name"] = ba_name
+        demand_data = {
+                    "timestamp_demand": self.data_demand[self.data_demand["type"] == "D"]["timestamp"].astype(str).tolist(),
+                    "demand": self.data_demand[self.data_demand["type"] == "D"]["Generation (MWh)"].tolist(),
+                    "timestamp_forecast": self.data_demand[self.data_demand["type"] == "DF"]["timestamp"].astype(str).tolist(),
+                    "forecast": self.data_demand[self.data_demand["type"] == "DF"]["Generation (MWh)"].tolist(),
+                },
+        mix_data = {}
+        for fuel_type in self.data_mix["type-name"].unique():
+            mix_data[fuel_type + "_timestamp"] = self.data_mix[self.data_mix["type-name"] == fuel_type]["timestamp"].astype(str).tolist()
+            mix_data[fuel_type] = self.data_mix[self.data_mix["type-name"] == fuel_type]["Generation (MWh)"].tolist()
+
         response = {
             "created": datetime.datetime.now().isoformat(),
             "sw_version": VERSION,
             "ba_name": self.ba_name,
-            "source_ratio_current": {"nuclear": 0.2, "solar": 0.1, "coal": 0.7},
+            "source_ratio_current": copy.copy(source_ratio_current),
             "green_ratio_current": 0.0,  # this case would be bad
             "green_ratio_mean": 0.0,  # this should be center point of dial
             "green_threshold_low": 0.0,  # below this dashboard popup says “shed loads”
             "green_threshold_high": 0.0,  # above this dashboard popup says “plug in loads”
             "alert_text": "Dirtier Energy Than Normal:  Shed Loads!",
+            "data_timeseries":{
+                "demand_data": copy.copy(demand_data),
+                "mix_data": copy.copy(mix_data),
+
+            }
         }
 
         self.logger.info(f"returning {response}")
@@ -130,9 +145,7 @@ def get_eia_timeseries(
     else:
         facet_dict = dict(**facets)
 
-    response_content = requests.get(
-        api_url,
-        headers={
+    headers = {
             "X-Params": json.dumps(
                 {
                     "frequency": frequency,
@@ -145,7 +158,11 @@ def get_eia_timeseries(
                     "length": 5000,  # This is the maximum allowed
                 }
             )
-        },
+        }
+
+    response_content = requests.get(
+        api_url,
+        headers=headers,
     )
     response_content = response_content.json()
 
@@ -180,7 +197,7 @@ def get_eia_timeseries(
     return dataframe.astype({eia_value_column_name: float}).rename(columns={eia_value_column_name: value_column_name})
 
 
-def get_eia_interchange_timeseries(balancing_authorities, **kwargs):
+def get_eia_interchange_timeseries_daily(balancing_authorities, **kwargs):
     """
     Fetch electricity interchange data (imports & exports from other utilities)
     """
@@ -192,7 +209,7 @@ def get_eia_interchange_timeseries(balancing_authorities, **kwargs):
     )
 
 
-def get_eia_net_demand_and_generation_timeseries(balancing_authorities, **kwargs):
+def get_eia_net_demand_and_generation_timeseries_daily(balancing_authorities, **kwargs):
     """
     Fetch electricity demand data
     """
@@ -206,7 +223,7 @@ def get_eia_net_demand_and_generation_timeseries(balancing_authorities, **kwargs
         **kwargs,
     )
 
-def get_eia_grid_mix_timeseries(balancing_authorities, **kwargs):
+def get_eia_grid_mix_timeseries_daily(balancing_authorities, **kwargs):
     """
     Fetch electricity generation data by fuel type
     """
@@ -217,7 +234,7 @@ def get_eia_grid_mix_timeseries(balancing_authorities, **kwargs):
         **kwargs,
     )
 
-def get_eia_grid_mix_timeseries_hourly(balancing_authorities, frequency="hourly", **kwargs):
+def get_eia_grid_mix_timeseries(balancing_authorities, frequency="hourly", **kwargs):
     """
     Fetch electricity generation data by fuel type
     """
@@ -237,14 +254,12 @@ def get_eia_demand_forecast_generation_interchange(balancing_authorities, freque
     """
     data = get_eia_timeseries(
         url_segment="region-data",
-        # facets={"respondent": balancing_authorities},  # for some reason this doesn't work on this
-        facets={},
+        facets={"respondent": balancing_authorities},  # for some reason this doesn't work on this
         value_column_name="Generation (MWh)",
         frequency=frequency,
         timezone=None,
         **kwargs,
     )
-    data = data[data["respondent"] == balancing_authorities]  # filter out
     return data
 
 
@@ -258,8 +273,8 @@ def get_energy_generated_and_consumed_locally(df):
 
 
 def energy_consumed_locally_by_source_ba(local_ba):
-    interchange_df = get_eia_interchange_timeseries([local_ba])
-    demand_df = get_eia_net_demand_and_generation_timeseries([local_ba])
+    interchange_df = get_eia_interchange_timeseries_daily([local_ba])
+    demand_df = get_eia_net_demand_and_generation_timeseries_daily([local_ba])
 
     energy_generated_and_used_locally = demand_df.groupby("timestamp").apply(
         get_energy_generated_and_consumed_locally
@@ -313,7 +328,7 @@ def get_usage_by_ba_and_generation_type(energy_consumed_locally_by_source_ba):
     all_source_bas = energy_consumed_locally_by_source_ba["fromba"].unique().tolist()
 
     # Then, fetch the fuel type breakdowns for each of those BAs
-    generation_types_by_ba = get_eia_grid_mix_timeseries(all_source_bas).rename(
+    generation_types_by_ba = get_eia_grid_mix_timeseries_daily(all_source_bas).rename(
         {"respondent": "fromba", "type-name": "generation_type"}, axis="columns"
     )
 
