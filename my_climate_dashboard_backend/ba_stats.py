@@ -6,6 +6,7 @@ import requests
 import json
 import copy
 import pandas as pd
+import numpy as np
 
 VERSION = "0.0.0"
 EIA_API_KEY = os.environ.get("EIA_API_KEY")
@@ -22,6 +23,8 @@ DUMMY_RESPONSE = {
 }
 
 LOCAL_LOGGER = logging.getLogger(__name__)
+LOW_THRESHOLD_PCT = 0.75
+HIGH_THRESHOLD_PCT = 1.1
 
 class BAStats:
     """
@@ -29,55 +32,101 @@ class BAStats:
     """
 
     def __init__(self, ba_name, logger=LOCAL_LOGGER ):
-        self.data = pd.DataFrame()
-        self.data_datetime = None
+        self.data_mix = pd.DataFrame()
+        self.data_demand = pd.DataFrame()
+        self.data_mix_datetime = None
+        self.data_demand_datetime = None
         self.ba_name = ba_name.upper()
         self.logger = logger
         self.logger.info(f"initialized with {self.ba_name}")
 
-
-    def get_data(self):
+    def get_data_mix(self,
+                     start_date_input=(datetime.date.today() - datetime.timedelta(days=5)).isoformat(),  # 5 days ago
+                     end_date_input=(datetime.date.today() + datetime.timedelta(days=1)).isoformat(),  # tomorrow
+                     ):
 
         self.logger.info("Getting data")
-        if self.data.empty or (max(self.data["timestamp"]) > (datetime.datetime.now() - datetime.timedelta(hours=1))):
-            # Only grab new data if it has been more than an hour since the last data we have
-
-            # TODO Need to figure out how we want to calculate this - Mix data is not current, but Forecast data doesn't have the mix
-            # Can we estimate the mix and use the generation data to estimate the green versus not green data?
-
-
+        # only get new data if it is more than an hour old
+        if (self.data_mix_datetime is None) or (self.data_mix_datetime > (datetime.datetime.now() - datetime.timedelta(hours=1))):
             # This provides generation mix, but only goes up to 00 the day before, T08 = 00H PST
             self.data_mix = get_eia_grid_mix_timeseries(
                 [self.ba_name],
                 # Get last 5 days of data
-                start_date=(datetime.date.today() - datetime.timedelta(days=5)).isoformat(),  # 5 days ago
-                end_date=(datetime.date.today() + datetime.timedelta(days=1)).isoformat(),  # tomorrow
+                start_date=start_date_input,
+                end_date=end_date_input,
                 frequency="hourly"
             ).copy()
 
+            self.data_mix_datetime = datetime.datetime.now().isoformat()
+            print(f"Received mix data up to {max(self.data_mix['timestamp'])}!")
+
+    def get_data_demand(self,
+                        start_date_input=(datetime.date.today() - datetime.timedelta(days=5)).isoformat(),  # 5 days ago,
+                        end_date_input=(datetime.date.today() + datetime.timedelta(days=3)).isoformat(),  # tomorrow
+                        ):
+
+        self.logger.info("Getting data")
+        # only get new data if it is more than an hour old
+        if (self.data_demand_datetime is None) or (self.data_demand_datetime > (datetime.datetime.now() - datetime.timedelta(hours=1))):
             # This provides most up to date demand and forecast data, but not mix
             self.data_demand = get_eia_demand_forecast_generation_interchange(
                 [self.ba_name],  # needs to be in a list
-                start_date=(datetime.date.today() - datetime.timedelta(days=5)).isoformat(),  # 5 days ago
-                end_date=(datetime.date.today() + datetime.timedelta(days=3)).isoformat(),  # tomorrow
+                start_date=start_date_input,
+                end_date=end_date_input
             ).copy()
 
-            self.data_datetime = datetime.datetime.now().isoformat()
-            print(f"Got Data up to {max(self.data_demand['timestamp'])}!")
+            self.data_demand_datetime = datetime.datetime.now().isoformat()
+            print(f"Received demand data up to {max(self.data_demand['timestamp'])}!")
+
+    def create_green_df(self):
+        # Filter rows with fuel types Solar and Wind
+        green_df = self.data_mix[self.data_mix['fueltype'].isin(['SUN', 'WND', 'NUC', 'WAT'])]
+        green_df = green_df.groupby('period')['Generation (MWh)'].sum().reset_index()
+
+        # Calculate the total generation for each time period
+        total_generation = self.data_mix.groupby('period')['Generation (MWh)'].sum().reset_index()
+        # Merge the total generation back to the green_df
+        green_df = pd.merge(green_df, total_generation, on='period', suffixes=('_green', '_total'))
+        # Calculate the ratio (Solar+Wind) / total
+        green_df['Green ratio'] = green_df['Generation (MWh)_green'] / green_df['Generation (MWh)_total']
+        green_df[["Date"]] = green_df[["period"]].apply(pd.to_datetime)
+        green_df = green_df.sort_values(by=['Date'], ascending=False)
+
+        return green_df
+
+    def create_demand_df(self):
+        demand_df = self.data_demand[self.data_demand['type'] == 'D'].copy()
+        demand_df = demand_df.rename(columns={"Generation (MWh)": "Demand"})
+        demand_df = demand_df[['period', 'respondent', 'Demand', 'value-units']]
+
+        forecast_df = self.data_demand[self.data_demand['type'] == 'DF']
+        forecast_df = forecast_df.rename(columns={"Generation (MWh)": "Demand Forecast"})
+
+        demand_df = pd.merge(demand_df, forecast_df[['period', 'Demand Forecast']], on='period')
+        max_demand = demand_df['Demand'].max()
+        demand_df['Demand_norm'] = demand_df['Demand'] / max_demand
+        demand_df['Demand Forecast_norm'] = demand_df['Demand Forecast'] / max_demand
+
+        demand_df['Demand ratio'] = demand_df['Demand'] / demand_df['Demand Forecast']
+        demand_df['Demand diff'] = demand_df['Demand'] - demand_df['Demand Forecast']
+
+        return demand_df
 
     def return_stats(self):
 
         self.logger.info("calculating results")
         # response = DUMMY_RESPONSE.copy()
         # response["ba_name"] = ba_name
+        self.get_data_mix()
+        self.get_data_demand()
 
-        # TODO add steps to calculate rest of stats
-        self.get_data()
+        # Get source mix ratios for pie chart display
         latest_mix = self.data_mix[self.data_mix["timestamp"] == max(self.data_mix["timestamp"])]
         latest_mix["mix_ratio"] = latest_mix["Generation (MWh)"] / sum(latest_mix["Generation (MWh)"])
         source_ratio_current = latest_mix[["type-name", "mix_ratio"]].set_index("type-name").to_dict()
         source_ratio_current["timestamp"] = str(max(self.data_mix["timestamp"]))
 
+        # Create time series, for time series display
         demand_data = {
                     "timestamp_demand": self.data_demand[self.data_demand["type"] == "D"]["timestamp"].astype(str).tolist(),
                     "demand": self.data_demand[self.data_demand["type"] == "D"]["Generation (MWh)"].tolist(),
@@ -89,21 +138,60 @@ class BAStats:
             mix_data[fuel_type + "_timestamp"] = self.data_mix[self.data_mix["type-name"] == fuel_type]["timestamp"].astype(str).tolist()
             mix_data[fuel_type] = self.data_mix[self.data_mix["type-name"] == fuel_type]["Generation (MWh)"].tolist()
 
+
+        demand_df = self.create_demand_df()
+        green_df = self.create_green_df()
+
+        # Merge the demand information from df_demand
+        analysis_df = pd.merge(green_df, demand_df[
+            ['period', 'Demand', 'Demand Forecast', 'Demand_norm', 'Demand Forecast_norm', 'Demand ratio',
+             'Demand diff']], on='period')
+
+        latest_row = analysis_df.head(1)
+        latest_green_ratio = latest_row['Green ratio'].values[0]
+        max_green = analysis_df['Green ratio'].max()
+        min_green = analysis_df['Green ratio'].min()
+
+        latest_demand_ratio = latest_row['Demand_norm'].values[0]
+        max_demand = analysis_df['Demand_norm'].max()
+        min_demand = analysis_df['Demand_norm'].min()
+
+        green_ratio_mean = (min_green+max_green)/2
+        green_threshold_low = green_ratio_mean * LOW_THRESHOLD_PCT
+        green_threshold_high = green_ratio_mean * HIGH_THRESHOLD_PCT
+
+        demand_ratio_mean = (min_demand+max_demand)/2
+        demand_threshold_low = demand_ratio_mean * LOW_THRESHOLD_PCT
+        demand_threshold_high = demand_ratio_mean * HIGH_THRESHOLD_PCT
+
+        demand_alert_text = ""
+        if latest_demand_ratio > demand_threshold_high:
+            demand_alert_text = f"Demand Energy {int(HIGH_THRESHOLD_PCT*100)}% Higher Than Normal: Shed Loads!"
+        elif latest_demand_ratio < demand_threshold_low:
+            demand_alert_text = f"Demand Energy {int(LOW_THRESHOLD_PCT*100)}% Lower Than Normal: Plug in Loads!"
+
+        green_alert_text = ""
+        if latest_green_ratio > green_threshold_high:
+            green_alert_text = f"Green Energy {int(HIGH_THRESHOLD_PCT * 100)}% Higher Than Normal: Plug in Loads!"
+        elif latest_green_ratio < green_threshold_low:
+            green_alert_text = f"Green Energy {int(LOW_THRESHOLD_PCT * 100)}% Lower Than Normal: Shed Loads!"
+
         response = {
             "created": datetime.datetime.now().isoformat(),
             "sw_version": VERSION,
             "ba_name": self.ba_name,
             "source_ratio_current": copy.copy(source_ratio_current),
-            "green_ratio_current": 0.0,  # this case would be bad
-            "green_ratio_mean": 0.0,  # this should be center point of dial
-            "green_threshold_low": 0.0,  # below this dashboard popup says “shed loads”
-            "green_threshold_high": 0.0,  # above this dashboard popup says “plug in loads”
-            "demand_ratio_current": 0.0,  # ratio of demand to max demand
-            "demand_ratio_mean": 0.5,  # this should be center point of dial
-            "demand_threshold_low": 0.0,  # below this dashboard popup says "plug in loads"
-            "demand_threshold_high": 0.0,  # above this dashboard popup says "shed loads"
-
-            "alert_text": "Dirtier Energy Than Normal:  Shed Loads!",
+            "green_ratio_current": latest_green_ratio,   # this case would be bad
+            "green_ratio_mean": green_ratio_mean,  # this should be center point of dial
+            "green_threshold_low": green_threshold_low,  # below this dashboard popup says “shed loads”
+            "green_threshold_high": green_threshold_high,  # above this dashboard popup says “plug in loads”
+            "demand_ratio_current": latest_demand_ratio,  # ratio of demand to max demand
+            "demand_ratio_mean": demand_ratio_mean,  # this should be center point of dial
+            "demand_threshold_low": demand_threshold_low,  # below this dashboard popup says "plug in loads"
+            "demand_threshold_high": demand_threshold_high,  # above this dashboard popup says "shed loads"
+            "alert_text": demand_alert_text,  # only doing demand since green energy calculations lag currently
+            "demand_alert_text": demand_alert_text,
+            "green_alert_text": green_alert_text,
             "data_timeseries": {
                 "demand_data": copy.copy(demand_data),
                 "mix_data": copy.copy(mix_data),
@@ -385,23 +473,75 @@ if __name__ == "__main__":
     ba_stats = BAStats(ba_authority)
     results = ba_stats.return_stats()
 
-    print("data_datetime", ba_stats.data_datetime)
-    print("data\n", ba_stats.data)
+    print("data_demand_datetime", ba_stats.data_demand_datetime)
+    print("data_demand\n", ba_stats.data_demand)
+
+    print("data_mix_datetime", ba_stats.data_mix_datetime)
+    print("data_mix\n", ba_stats.data_mix)
     print("Process time:", time.time()-t0)
 
     print(results)
 
     # Plot results
     fig, ax = plt.subplots(figsize=(12, 8))
-    for fuel_type in ba_stats.data["type-name"].unique():
-        df = ba_stats.data[ba_stats.data["type-name"] == fuel_type]
+    for fuel_type in ba_stats.data_mix["type-name"].unique():
+        df = ba_stats.data_mix[ba_stats.data_mix["type-name"] == fuel_type]
         ax.plot(df["timestamp"], df["Generation (MWh)"], label=fuel_type)
     plt.legend()
     plt.grid(True)
-    # fig.subplots_adjust(bottom=0.1)
     plt.xticks(rotation=45)
-    # plt.tight_layout()
     plt.title(f"{ba_authority} Power Generation")
     plt.xlabel("Timestamp")
     plt.ylabel("Generation (MWh)")
+    plt.show()
+
+    fig, ax = plt.subplots(figsize=(12, 8))
+    for fuel_type in ba_stats.data_demand["type-name"].unique():
+        df = ba_stats.data_demand[ba_stats.data_demand["type-name"] == fuel_type]
+        ax.plot(df["timestamp"], df["Generation (MWh)"], label=fuel_type)
+
+    plt.legend()
+    plt.grid(True)
+    plt.xticks(rotation=45)
+    plt.title(f"{ba_authority} Power Generation")
+    plt.xlabel("Timestamp")
+    plt.ylabel("Generation (MWh)")
+    plt.show()
+
+
+    # plot green
+    demand_df = ba_stats.create_demand_df()
+    green_df = ba_stats.create_green_df()
+
+    # Merge the demand information from df_demand
+    analysis_df = pd.merge(green_df, demand_df[
+        ['period', 'Demand', 'Demand Forecast', 'Demand_norm', 'Demand Forecast_norm', 'Demand ratio',
+         'Demand diff']], on='period')
+
+    # Plot Ratios
+    fig, ax = plt.subplots(figsize=(12, 8))
+    ax.plot(analysis_df['Date'], analysis_df['Green ratio'], "g", label="green_ratio")
+    ax.plot(analysis_df['Date'], analysis_df['Demand ratio'], "b", label="demand2forecast_ratio")
+    ax.plot(analysis_df['Date'], analysis_df['Demand_norm'], "c", label="demand2max_ratio")
+    plt.legend()
+    plt.grid(True)
+    plt.xticks(rotation=45)
+    # plt.tight_layout()
+    plt.xlabel("Timestamp")
+    plt.ylabel("Ratio")
+    plt.title(f"{ba_authority} Green energy / Demand ratio vs time (latest: {max(analysis_df['Date'])})")
+
+    # Plot correlation
+    correlation = analysis_df["Green ratio"].corr(analysis_df["Demand ratio"])
+    fig, ax = plt.subplots(figsize=(12, 8))
+    ax.scatter(analysis_df["Green ratio"], analysis_df["Demand ratio"], label='')
+    # ax.scatter(analysis_df["Green ratio"], analysis_df["Demand diff"], label='')
+    ax.annotate(f'Correlation: {correlation:.2f}', xy=(0.5, 0.95), xycoords='axes fraction', ha='center', fontsize=12)
+    plt.legend()
+    plt.grid(True)
+    plt.xticks(rotation=45)
+    # plt.tight_layout()
+    plt.title(f"{ba_authority} Green energy ratio vs Demand ratio")
+    plt.xlabel("Green ratio")
+    plt.ylabel("Demand ratio")
     plt.show()
