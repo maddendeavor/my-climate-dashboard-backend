@@ -7,11 +7,6 @@ it is a better time to use power, for example plug in their electric vehicle.  I
 tells the user to shed power loads.
 
 ## Installation/Build Instructions
-<This step only required when initially setting up the repo>
-In order for Github Actions/Workflows to run you will need to create a `GITFLOW_PAT`
-personal access token in Github that gives access rights to the repo. 
-You then need to add this as an `Actions` secret to the github respository.
-Note the same PAT needs to be added to the dependabot secrets.
 
 * First Create virtual environment
 ```commandline
