@@ -147,14 +147,16 @@ class BAStats:
             ['period', 'Demand', 'Demand Forecast', 'Demand_norm', 'Demand Forecast_norm', 'Demand ratio',
              'Demand diff']], on='period')
 
-        latest_row = analysis_df.head(1)
-        latest_green_ratio = latest_row['Green ratio'].values[0]
-        max_green = analysis_df['Green ratio'].max()
-        min_green = analysis_df['Green ratio'].min()
+        latest_row_green = green_df.head(1)
+        latest_row_demand = demand_df.head(1)
 
-        latest_demand_ratio = latest_row['Demand_norm'].values[0]
-        max_demand = analysis_df['Demand_norm'].max()
-        min_demand = analysis_df['Demand_norm'].min()
+        latest_green_ratio = latest_row_green['Green ratio'].values[0]
+        max_green = green_df['Green ratio'].max()
+        min_green = green_df['Green ratio'].min()
+
+        latest_demand_ratio = latest_row_demand['Demand_norm'].values[0]
+        max_demand = demand_df['Demand_norm'].max()
+        min_demand = demand_df['Demand_norm'].min()
 
         green_ratio_mean = (min_green+max_green)/2
         green_threshold_low = green_ratio_mean * LOW_THRESHOLD_PCT
