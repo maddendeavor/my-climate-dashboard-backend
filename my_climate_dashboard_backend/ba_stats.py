@@ -6,14 +6,14 @@ import requests
 import json
 import copy
 import pandas as pd
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+
+from my_climate_dashboard_backend.google_email import gmail_send_message
+
 
 VERSION = "0.0.0"
 EIA_API_KEY = os.environ.get("EIA_API_KEY")
-EMAIL = os.environ.get("TEST_EMAIL")
-EMAIL_PW = os.environ.get("TEST_EMAIL_PW")
+DEFAULT_EMAIL = os.environ.get("TEST_EMAIL")
+ENABLE_EMAIL = True
 
 DUMMY_RESPONSE = {
     "created": datetime.datetime.now().isoformat(),
@@ -176,24 +176,12 @@ class BAStats:
         elif latest_demand_ratio < demand_threshold_low:
             demand_alert_text = f"Demand Energy {int(LOW_THRESHOLD_PCT*100)}% Lower Than Normal: Plug in Loads!"
 
-        # Send email if there is an alert
-        if len(demand_alert_text) > 0:
-            email_subject = demand_alert_text
-            email_body = demand_alert_text + f"\n Sincerely, \n Your Climate Dashboard"
-            send_email(email_subject, email_body, EMAIL)
-
 
         green_alert_text = ""
         if latest_green_ratio > green_threshold_high:
             green_alert_text = f"Green Energy {int(HIGH_THRESHOLD_PCT * 100)}% Higher Than Normal: Plug in Loads!"
         elif latest_green_ratio < green_threshold_low:
             green_alert_text = f"Green Energy {int(LOW_THRESHOLD_PCT * 100)}% Lower Than Normal: Shed Loads!"
-
-        # Send email if there is an alert
-        if len(green_alert_text) > 0:
-            email_subject = green_alert_text
-            email_body = green_alert_text + f"\n Sincerely, \n Your Climate Dashboard"
-            send_email(email_subject, email_body, EMAIL)
 
         response = {
             "created": datetime.datetime.now().isoformat(),
@@ -217,6 +205,13 @@ class BAStats:
 
             }
         }
+
+        # Send email if there is an alert
+        if ENABLE_EMAIL and ((len(green_alert_text) > 0) or (len(demand_alert_text) > 0)):
+            email_subject = "MyClimateDashboard: Power Usage Alert!!!"
+            email_body = "ALERT!\n" + green_alert_text + "\n" + demand_alert_text + f"\n Sincerely, \n Your Climate Dashboard"
+            email_body += f"\n\n\n\n\n\n Data:\n {response}"
+            gmail_send_message(email_subject, email_body, DEFAULT_EMAIL)  # TODO update this to be the user's email
 
         self.logger.info(f"returning {response}")
         return response
@@ -481,28 +476,6 @@ def get_usage_by_ba_and_generation_type(energy_consumed_locally_by_source_ba):
     )
 
     return usage_by_ba_and_generation_type
-
-def send_email(subject, body, to_email):
-    # Set your Gmail credentials
-    sender_email = EMAIL
-    sender_password = EMAIL_PW
-
-    # Create a MIMEText object for the email content
-    message = MIMEMultipart()
-    message["From"] = sender_email
-    message["To"] = to_email
-    message["Subject"] = subject
-
-    # Attach the body of the email
-    message.attach(MIMEText(body, "plain"))
-
-    # Establish a connection with the SMTP server
-    with smtplib.SMTP("smtp.gmail.com", 587) as server:
-        server.starttls()
-        server.login(sender_email, sender_password)
-
-        # Send the email
-        server.sendmail(sender_email, to_email, message.as_string())
 
 
 if __name__ == "__main__":

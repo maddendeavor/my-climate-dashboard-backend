@@ -168,5 +168,7 @@ jupyterhub*
 *.asv
 
 #################
-## Next program
+## Google
 ################
+credentials.json
+token.json

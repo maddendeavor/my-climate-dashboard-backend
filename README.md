@@ -6,6 +6,10 @@ information regarding the status of power being delivered from their local Balan
 it is a better time to use power, for example plug in their electric vehicle.  If the power is less "green", an alert
 tells the user to shed power loads.
 
+This project was created as part of the team's final project in the `Terra.do` class
+https://www.terra.do/climate-education/cohort-courses/software-stacks-in-climate-tech/
+This project was developed by modifying code provided in class.
+
 ## Installation/Build Instructions
 
 * First Create virtual environment
@@ -29,6 +33,15 @@ You can do this by adding this line to your `.bashrc` file:
 ```commandline
 export EIA_API_KEY=<enter_api_key_here>
 ```
+
+The email feature requires a sending Google email account plus Oauth to be setup.  It is recommended you
+create a separate email account for sending the alerts, rather than using a personal account.
+
+To setup the oauth connection to the Gmail API perform the following steps in your sending account:
+https://developers.google.com/gmail/api/quickstart/python
+
+Add the `credentials.json` file to the `my_climate_dashboard_backend` folder in this repo.
+Then run the `my_climate_dashboard_backend\google_quickstart.py` code to authenticate your email account. 
 
 ## Test API
 ```commandline
