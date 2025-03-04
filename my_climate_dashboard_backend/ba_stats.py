@@ -13,7 +13,7 @@ from my_climate_dashboard_backend.google_email import gmail_send_message
 VERSION = "0.0.0"
 EIA_API_KEY = os.environ.get("EIA_API_KEY")
 DEFAULT_EMAIL = os.environ.get("TEST_EMAIL")
-ENABLE_EMAIL = True
+ENABLE_EMAIL = False
 
 DUMMY_RESPONSE = {
     "created": datetime.datetime.now().isoformat(),
